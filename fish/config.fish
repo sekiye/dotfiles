@@ -97,10 +97,10 @@ set -g fish_pager_color_progress cyan
 source ~/.exports
 
 # ctrl-b invokes the fancy boi. but this doesnt really work right.
-bind \cb git-recent-with-fzf-and-diff
-if bind -M insert > /dev/null 2>&1
-    bind -M insert \cb git-recent-with-fzf-and-diff
-end
+#bind \cb git-recent-with-fzf-and-diff
+#if bind -M insert > /dev/null 2>&1
+#    bind -M insert \cb git-recent-with-fzf-and-diff
+#end
 
 # TODO debug this
 # this currently messes with newlines in my prompt. lets debug it later.
