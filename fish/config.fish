@@ -106,8 +106,8 @@ set -g fish_pager_color_progress cyan
 
 
 # ctrl-b invokes the fancy boi. but this doesnt really work right.
-bind \cb git-recent-with-fzf-and-diff
-if bind -M insert > /dev/null 2>&1
-    bind -M insert \cb git-recent-with-fzf-and-diff
-end
+#bind \cb git-recent-with-fzf-and-diff
+#if bind -M insert > /dev/null 2>&1
+#    bind -M insert \cb git-recent-with-fzf-and-diff
+#end
 
