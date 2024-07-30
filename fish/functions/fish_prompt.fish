@@ -408,7 +408,7 @@ function fish_prompt
         echo ''
     end
 
-    iterm2_prompt_mark # manually place it
+    #iterm2_prompt_mark # manually place it
 
     # echo -sn $user "@" $hostname
     set_color $lucid_cwd_color
