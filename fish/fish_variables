@@ -1,0 +1,14 @@
+# This file contains fish universal variable definitions.
+# VERSION: 3.0
+SETUVAR __fish_initialized:3800
+SETUVAR fish_color_cancel:\x2dr
+SETUVAR fish_color_end:green
+SETUVAR fish_color_host_remote:yellow
+SETUVAR fish_color_selection:white\x1e\x2d\x2dbold\x1e\x2d\x2dbackground\x3dbrblack
+SETUVAR fish_key_bindings:fish_default_key_bindings
+SETUVAR fish_pager_color_selected_background:\x2dr
+SETUVAR fish_user_paths:/opt/homebrew/opt/openjdk/bin\x1e/opt/homebrew/sbin\x1e/opt/homebrew/bin\x1e/Users/takeshi\x2esekiya/\x2epub\x2dcache/bin\x1e/Users/takeshi\x2esekiya/\x2egem/ruby/2\x2e6\x2e0/bin
+SETUVAR pure_color_git_dirty:\x1b\x5b36m
+SETUVAR pure_color_git_unpulled_commits:\x1b\x5b92m
+SETUVAR pure_color_git_unpushed_commits:\x1b\x5b33m
+SETUVAR pure_color_success:\x1b\x5b32m
