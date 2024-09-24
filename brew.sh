@@ -69,5 +69,6 @@ brew install gdu # available as gdu-go. faster than ncdu on SSD's.
 
 
 brew install scrcpy # control/view android phone from PC. amazing
-brew install youtube-dl
+
+brew install difftastic
 

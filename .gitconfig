@@ -93,6 +93,7 @@
 	renames = copies
 	# A la `git submodule summary`
 	submodule = log
+	external = difft
 
 # special hunk parsing for .pdl. https://mirrors.edge.kernel.org/pub/software/scm/git/docs/gitattributes.html#_defining_a_custom_hunk_header
 [diff "pdl"]
