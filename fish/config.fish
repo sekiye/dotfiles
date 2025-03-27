@@ -111,3 +111,9 @@ set -g fish_pager_color_progress cyan
 #    bind -M insert \cb git-recent-with-fzf-and-diff
 #end
 
+# Added by `rbenv init` on Mon Jan  6 13:43:48 JST 2025
+status --is-interactive; and rbenv init - --no-rehash fish | source
+
+# Added by OrbStack: command-line tools and integration
+# This won't be added again if you remove it.
+source ~/.orbstack/shell/init2.fish 2>/dev/null || :
