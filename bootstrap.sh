@@ -18,17 +18,54 @@ if [[ -r /etc/os-release ]]; then
   fi
 fi
 
+# A Dev Container may export en_US.UTF-8 before the locale has actually been
+# generated. Use C.UTF-8 while bootstrapping so apt/perl do not emit locale
+# warnings, then generate and select en_US.UTF-8 below.
+if locale -a 2>/dev/null | grep -qi '^C\.utf8$'; then
+  export LANG=C.UTF-8
+  export LC_ALL=C.UTF-8
+fi
+
 log "Installing base packages"
 missing=()
-for pkg in build-essential procps curl file git ca-certificates; do
+for pkg in build-essential procps curl file git ca-certificates locales; do
   if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q 'ok installed'; then
     missing+=("$pkg")
   fi
 done
 if ((${#missing[@]})); then
   sudo apt-get update
-  sudo apt-get install -y "${missing[@]}"
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
 fi
+
+log "Ensuring en_US.UTF-8 locale"
+if ! locale -a 2>/dev/null | grep -qi '^en_US\.utf8$'; then
+  sudo locale-gen en_US.UTF-8
+fi
+if ! grep -Eq '^LANG=en_US\.UTF-8$' /etc/default/locale 2>/dev/null; then
+  sudo update-locale LANG=en_US.UTF-8
+fi
+unset LC_ALL
+export LANG=en_US.UTF-8
+
+# Some Dev Container images leave user configuration directories owned by root.
+# Fix only the paths managed by this dotfiles setup; never chown the whole HOME,
+# because HOME can contain bind mounts such as ~/.claude.
+ensure_user_dir() {
+  local dir="$1"
+  if ! mkdir -p "$dir" 2>/dev/null; then
+    sudo install -d -o "$(id -u)" -g "$(id -g)" -m 0755 "$dir"
+  fi
+  if [[ ! -w "$dir" ]]; then
+    log "Fixing ownership: $dir"
+    sudo chown "$(id -u):$(id -g)" "$dir"
+  fi
+}
+
+ensure_user_dir "$HOME/.config"
+ensure_user_dir "$HOME/.config/chezmoi"
+ensure_user_dir "$HOME/.local"
+ensure_user_dir "$HOME/.local/share"
 
 if ! command -v brew >/dev/null 2>&1; then
   if [[ -x "$BREW_BIN" ]]; then
@@ -93,5 +130,6 @@ printf '  chezmoi:  %s\n' "$(chezmoi --version)"
 if [[ -x "$FISH_BIN" ]]; then
   printf '  fish:     %s\n' "$("$FISH_BIN" --version)"
 fi
+printf '  locale:   %s\n' "${LANG:-unset}"
 printf '\nStart fish now with:\n  exec %s\n' "$FISH_BIN"
 printf '\nFuture Bash sessions will load Homebrew automatically.\n'
