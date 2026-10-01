@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BREW="/home/linuxbrew/.linuxbrew/bin/brew"
+if [[ ! -x "$BREW" ]]; then
+  echo "Homebrew not found: $BREW" >&2
+  exit 1
+fi
+
+eval "$("$BREW" shellenv)"
+BREWFILE='{{ .chezmoi.sourceDir }}/packages/Brewfile'
+
+echo "==> Ensuring Homebrew packages"
+if ! brew bundle check --file="$BREWFILE" >/dev/null 2>&1; then
+  brew bundle install --file="$BREWFILE"
+fi
+
+# We intentionally do NOT run `brew bundle cleanup`: Homebrew is host-global
+# and the user may have other formulas outside this dotfiles project.
