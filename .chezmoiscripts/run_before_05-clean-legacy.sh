@@ -8,7 +8,14 @@ safe_remove_sha256() {
   shift
   [[ -f "$path" ]] || return 0
   local actual
-  actual="$(sha256sum "$path" | awk '{print $1}')"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$path" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$path" | awk '{print $1}')"
+  else
+    echo "No SHA-256 tool found; keeping legacy file: $path" >&2
+    return 0
+  fi
   local expected
   for expected in "$@"; do
     if [[ "$actual" == "$expected" ]]; then
@@ -43,3 +50,9 @@ safe_remove_sha256 "$HOME/install.sh" \
 safe_remove_sha256 "$HOME/packages/Brewfile" \
   3064d885e680a50383c888de67d32c45980768c62df6dd1837a73278a9ea4004
 rmdir "$HOME/packages" 2>/dev/null || true
+
+# V6 migration: fzf-git.sh was replaced by forgit. Remove only the exact V5
+# managed Fish loader, then remove the old cloned helper repository.
+safe_remove_sha256 "$HOME/.config/fish/conf.d/50-fzf-git.fish" \
+  a9bc1b3b43c8d631c207a06cac299bd06afe4e29cdee8f712ff4dd4823552402
+rm -rf -- "$HOME/.local/share/fzf-git.sh"

@@ -1,6 +1,6 @@
-# devcontainer-dotfiles-modern-v6
+# devcontainer-dotfiles-modern-v7
 
-Ubuntu 24.04向けの個人dotfilesテンプレート。
+Ubuntu / Dev Container / macOS で共通利用する個人 dotfiles。
 
 ## Stack
 
@@ -13,26 +13,47 @@ Ubuntu 24.04向けの個人dotfilesテンプレート。
 - fd / ripgrep / bat / eza / jq
 - chezmoi
 
+## Supported environments
+
+- Ubuntu / Ubuntu-based Dev Containers
+- macOS Apple Silicon (`/opt/homebrew`)
+- macOS Intel (`/usr/local`)
+
+Homebrew の場所は固定せず、検出後に `brew shellenv` を使います。
+
 ## First setup / upgrade
 
 ```bash
 ./bootstrap.sh
 ```
 
-V6 is designed to be idempotent. Running `bootstrap.sh` again converges the
-managed fish configuration/plugins to the current repo definition.
+V7 is idempotent. Re-running `bootstrap.sh` converges the Homebrew packages,
+chezmoi-managed files, and Fisher plugins to the repository definition.
 
-V6 keeps the existing Dev Container bootstrap fixes:
+### Linux / Dev Container
 
-- installs `locales`, generates `en_US.UTF-8`, and sets it as the default locale
-- temporarily uses `C.UTF-8` during bootstrap to avoid locale warnings before generation
-- repairs ownership of only `~/.config`, `~/.config/chezmoi`, `~/.local`, and `~/.local/share` when needed
-- deliberately does **not** recursively `chown` `$HOME`, so bind mounts such as `~/.claude` are left alone
+Linuxでは必要なbase packagesと `en_US.UTF-8` localeもbootstrapが準備します。
+Dev Container向けのownership修復は `~/.config` / `~/.local` など管理対象だけに限定し、
+`$HOME` 全体には再帰的 `chown` を行いません。
 
-After bootstrap, start fish with:
+### macOS
+
+Apple Silicon / Intel の両方をサポートします。既存Homebrewがあれば再利用し、
+無ければ公式install scriptで導入します。
+
+bootstrap後、fishをすぐ使う場合:
 
 ```bash
-exec /home/linuxbrew/.linuxbrew/bin/fish
+exec "$(brew --prefix)/bin/fish"
+```
+
+macOSのログインシェル自体をfishに変更したい場合だけ、任意で次を実行します。
+Dev Containerではこの変更は不要です。
+
+```bash
+FISH="$(brew --prefix)/bin/fish"
+grep -qxF "$FISH" /etc/shells || echo "$FISH" | sudo tee -a /etc/shells
+chsh -s "$FISH"
 ```
 
 ## Updates after the repo has a Git remote
@@ -43,14 +64,12 @@ chezmoi update
 
 ## fzf.fish
 
-`PatrickF1/fzf.fish` provides Fish-native fuzzy pickers (history, files,
-directories, Git status/log, variables, etc.). Use:
+`PatrickF1/fzf.fish` provides Fish-native fuzzy pickers for history, files,
+directories, Git status/log, variables, etc.
 
 ```fish
 fzf_configure_bindings --help
 ```
-
-to inspect/customize bindings.
 
 ## forgit
 
@@ -86,25 +105,10 @@ gl   -> compact graph log
 
 `cat` is intentionally not replaced by `bat`.
 
-## Upgrade safety
+## Cross-platform details
 
-V6 keeps the previous migration behavior and removes legacy V1/V2 fish files only when their SHA-256 matches the exact
-old template content. Modified files are retained. It also safely cleans the
-support files that V3 could accidentally copy to `$HOME`, again only when the
-contents exactly match V3.
-
-Fisher's `fish_plugins` is declarative: `fisher update` installs missing
-plugins and removes plugins no longer listed (for example the old Tide plugin).
-
-Homebrew packages are additive on purpose: V6 ensures the Brewfile packages
-exist but does not uninstall unrelated formulas from the shared Homebrew prefix.
-
-## Dev Container fixes
-
-If a Dev Container exports `LANG=en_US.UTF-8` without actually having that
-locale generated, bootstrap now installs `locales`, generates `en_US.UTF-8`,
-and runs `update-locale` automatically.
-
-If the image leaves `~/.config` or `~/.local` non-writable, bootstrap repairs
-only the directories that chezmoi needs. It intentionally avoids recursive
-ownership changes across `$HOME`.
+- Homebrew detection: Linuxbrew / Apple Silicon macOS / Intel macOS
+- shell initialization: Bash/Profile on Linux, Zsh on macOS, Fish on both
+- SHA-256 migration checks: `sha256sum` on Linux, `shasum -a 256` fallback on macOS
+- Homebrew packages are additive; unrelated formulas are not removed
+- Fisher `fish_plugins` is declarative, so removed plugins are cleaned up by `fisher update`
