@@ -157,7 +157,8 @@ if ! command -v chezmoi >/dev/null 2>&1; then
 fi
 
 log "Applying chezmoi source: $SCRIPT_DIR"
-chezmoi init --source="$SCRIPT_DIR" --apply
+chezmoi init --source="$SCRIPT_DIR"
+chezmoi apply --force
 
 FISH_BIN="$(brew --prefix)/bin/fish"
 log "Bootstrap complete"
