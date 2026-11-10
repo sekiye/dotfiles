@@ -43,8 +43,36 @@ Dev Container向けのownership修復は `~/.config` / `~/.local` など管理�
 apt と Homebrew の取得先を Artifactory の remote repository に切り替えます。
 どれかが無い、または接続できない場合は使いません。
 
-Dev Containerでは、ホスト側で設定した値を `devcontainer.json` から渡します
-（トークンをファイルに書かないこと）:
+環境変数が無い場合、`bootstrap.sh` は git から補います。
+
+- `ARTIFACTORY_URL`: `git config artifactory.url`
+- `ARTIFACTORY_USER` / `ARTIFACTORY_TOKEN`: git credential helper（`https://<host>`）
+
+VS Code の Dev Containers はホストの `~/.gitconfig` をコンテナにコピーし、
+git credential をホストへ転送するので、`devcontainer.json` を変更せずに使えます。
+ここでのホストは Dev Containers が動くマシンです（Remote-SSH 経由ならリモート側）。
+ホストで一度だけ設定します:
+
+```bash
+host=artifactory.example.com
+git config --global artifactory.url "$host"
+# Linux ホスト: Artifactory 専用のファイルに保存（macOS ならキーチェーンが使われるので不要）
+git config --global "credential.https://$host.helper" \
+  "store --file ~/.config/git/artifactory-credentials"
+mkdir -p ~/.config/git
+read -rp 'user: ' u; read -rsp 'token: ' t; echo
+printf 'protocol=https\nhost=%s\nusername=%s\npassword=%s\n\n' "$host" "$u" "$t" \
+  | git credential approve
+```
+
+確認（ホストとコンテナ内の両方で `username=` が出ればOK）:
+
+```bash
+printf 'protocol=https\nhost=%s\n\n' "$(git config --get artifactory.url)" \
+  | git credential fill | grep -v password
+```
+
+`devcontainer.json` を変更できる場合は、環境変数で渡すこともできます:
 
 ```jsonc
 "remoteEnv": {

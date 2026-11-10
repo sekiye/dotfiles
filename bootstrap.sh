@@ -15,6 +15,34 @@ artifactory_base_url() {
   printf '%s\n' "$url"
 }
 
+# Fill unset ARTIFACTORY_URL / ARTIFACTORY_USER / ARTIFACTORY_TOKEN from git:
+# the URL from `git config artifactory.url`, the credentials from the git
+# credential helper. Dev Containers copies the host ~/.gitconfig and forwards
+# git credentials to the host, so this needs no devcontainer.json change.
+load_artifactory_config() {
+  command -v git >/dev/null 2>&1 || return 0
+  if [[ -z "${ARTIFACTORY_URL:-}" ]]; then
+    ARTIFACTORY_URL="$(git config --get artifactory.url 2>/dev/null || true)"
+  fi
+  [[ -n "$ARTIFACTORY_URL" ]] || return 0
+
+  if [[ -z "${ARTIFACTORY_USER:-}" || -z "${ARTIFACTORY_TOKEN:-}" ]]; then
+    local host cred timeout_cmd=()
+    host="$(artifactory_base_url "$ARTIFACTORY_URL")"
+    host="${host#*://}"
+    host="${host%%/*}"
+    command -v timeout >/dev/null 2>&1 && timeout_cmd=(timeout 15)
+    # Never prompt: without a stored credential, just skip Artifactory.
+    cred="$(printf 'protocol=https\nhost=%s\n\n' "$host" \
+      | GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true SSH_ASKPASS=true \
+        ${timeout_cmd[@]+"${timeout_cmd[@]}"} git credential fill 2>/dev/null || true)"
+    ARTIFACTORY_USER="$(sed -n 's/^username=//p' <<<"$cred")"
+    ARTIFACTORY_TOKEN="$(sed -n 's/^password=//p' <<<"$cred")"
+  fi
+  export ARTIFACTORY_URL ARTIFACTORY_USER ARTIFACTORY_TOKEN
+}
+load_artifactory_config
+
 find_brew() {
   if command -v brew >/dev/null 2>&1; then
     command -v brew
