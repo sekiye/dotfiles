@@ -36,6 +36,14 @@ Linuxでは必要なbase packagesと `en_US.UTF-8` localeもbootstrapが準備�
 Dev Container向けのownership修復は `~/.config` / `~/.local` など管理対象だけに限定し、
 `$HOME` 全体には再帰的 `chown` を行いません。
 
+base packagesが不足していてaptを実行する場合だけ、amd64では apt の取得先を
+`jp.archive.ubuntu.com` に切り替えます（`--no-install-recommends` でインストール）。
+
+```bash
+APT_JP_MIRROR=0 ./bootstrap.sh   # ミラーを切り替えない
+APT_FORCE_IPV4=1 ./bootstrap.sh  # IPv6経路が不安定な場合にaptをIPv4に固定
+```
+
 ### macOS
 
 Apple Silicon / Intel の両方をサポートします。既存Homebrewがあれば再利用し、

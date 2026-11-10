@@ -50,8 +50,25 @@ case "$OS" in
       fi
     done
     if ((${#missing[@]})); then
+      # archive.ubuntu.com can be very slow from Japan. Switch to the JP mirror
+      # (amd64 only; arm64 uses ports.ubuntu.com, which has no JP mirror).
+      # Set APT_JP_MIRROR=0 to keep the image's original sources.
+      if [[ "${APT_JP_MIRROR:-1}" == "1" && "$(dpkg --print-architecture)" == "amd64" ]]; then
+        for src in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list; do
+          if [[ -f "$src" ]] && grep -q 'http://archive\.ubuntu\.com/ubuntu' "$src"; then
+            log "Switching apt mirror to jp.archive.ubuntu.com: $src"
+            sudo sed -i 's|http://archive\.ubuntu\.com/ubuntu|http://jp.archive.ubuntu.com/ubuntu|g' "$src"
+          fi
+        done
+      fi
+
+      # Opt-in workaround for unstable IPv6 routes.
+      if [[ "${APT_FORCE_IPV4:-0}" == "1" ]]; then
+        echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 >/dev/null
+      fi
+
       sudo apt-get update
-      sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+      sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
     fi
 
     log "Ensuring en_US.UTF-8 locale"
