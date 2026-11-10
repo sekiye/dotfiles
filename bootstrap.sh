@@ -6,6 +6,15 @@ OS="$(uname -s)"
 
 log() { printf '\n==> %s\n' "$*"; }
 
+# Normalize ARTIFACTORY_URL ("host", "https://host" or "https://host/artifactory")
+# to the Artifactory base URL.
+artifactory_base_url() {
+  local url="${1%/}"
+  [[ "$url" == *://* ]] || url="https://$url"
+  [[ "$url" == */artifactory ]] || url="$url/artifactory"
+  printf '%s\n' "$url"
+}
+
 find_brew() {
   if command -v brew >/dev/null 2>&1; then
     command -v brew
@@ -50,14 +59,69 @@ case "$OS" in
       fi
     done
     if ((${#missing[@]})); then
-      # archive.ubuntu.com can be very slow from Japan. Switch to the JP mirror
-      # (amd64 only; arm64 uses ports.ubuntu.com, which has no JP mirror).
-      # Set APT_JP_MIRROR=0 to keep the image's original sources.
-      if [[ "${APT_JP_MIRROR:-1}" == "1" && "$(dpkg --print-architecture)" == "amd64" ]]; then
+      # archive.ubuntu.com can be very slow from Japan. APT_MIRROR selects:
+      #   auto (default): Artifactory (ARTIFACTORY_URL) when it is reachable and
+      #                   credentials are given by ARTIFACTORY_USER /
+      #                   ARTIFACTORY_TOKEN (or already exist in
+      #                   /etc/apt/auth.conf{,.d/*}); otherwise the JP mirror
+      #                   (amd64 only; ports.ubuntu.com has none)
+      #   artifactory | jp | off
+      # The rewrite is persistent: a container switched to Artifactory needs it
+      # to be reachable for later apt runs.
+      apt_mirror="${APT_MIRROR:-auto}"
+      artifactory_url=""
+      artifactory_host=""
+      if [[ -n "${ARTIFACTORY_URL:-}" ]]; then
+        artifactory_url="$(artifactory_base_url "$ARTIFACTORY_URL")"
+        artifactory_host="${artifactory_url#*://}"
+        artifactory_host="${artifactory_host%%/*}"
+      fi
+      if [[ "$apt_mirror" == "auto" ]]; then
+        if [[ -n "$artifactory_url" && -r /etc/ssl/certs/ca-certificates.crt ]] \
+          && command -v curl >/dev/null 2>&1 \
+          && curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null \
+          && { [[ -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]] \
+            || sudo grep -qsF "$artifactory_host" /etc/apt/auth.conf /etc/apt/auth.conf.d/*; }; then
+          apt_mirror=artifactory
+        elif [[ "$(dpkg --print-architecture)" == "amd64" ]]; then
+          apt_mirror=jp
+        else
+          apt_mirror=off
+        fi
+      fi
+
+      case "$apt_mirror" in
+        artifactory)
+          if [[ -z "$artifactory_url" ]]; then
+            echo "APT_MIRROR=artifactory requires ARTIFACTORY_URL." >&2
+            exit 1
+          fi
+          mirror_sed="s#https\?://\(jp\.\)\?\(archive\|security\)\.ubuntu\.com/ubuntu/\?#$artifactory_url/debian-remote/#g"
+          mirror_sed+="; s#https\?://ports\.ubuntu\.com/ubuntu-ports/\?#$artifactory_url/debian-ubuntu-ports-remote/#g"
+          ;;
+        jp)
+          mirror_sed='s#http://archive\.ubuntu\.com/ubuntu#http://jp.archive.ubuntu.com/ubuntu#g'
+          ;;
+        off)
+          mirror_sed=''
+          ;;
+        *)
+          echo "Unknown APT_MIRROR: $apt_mirror (expected auto, artifactory, jp, or off)" >&2
+          exit 1
+          ;;
+      esac
+      if [[ "$apt_mirror" == "artifactory" && -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]]; then
+        log "Writing apt credentials for Artifactory"
+        # printf is a builtin, so the token never appears in a process argv.
+        printf 'machine %s\nlogin %s\npassword %s\n' \
+          "$artifactory_host" "$ARTIFACTORY_USER" "$ARTIFACTORY_TOKEN" \
+          | sudo sh -c 'install -d -m 0755 /etc/apt/auth.conf.d && umask 077 && cat > /etc/apt/auth.conf.d/artifactory.conf'
+      fi
+      if [[ -n "$mirror_sed" ]]; then
+        log "Using apt mirror: $apt_mirror"
         for src in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list; do
-          if [[ -f "$src" ]] && grep -q 'http://archive\.ubuntu\.com/ubuntu' "$src"; then
-            log "Switching apt mirror to jp.archive.ubuntu.com: $src"
-            sudo sed -i 's|http://archive\.ubuntu\.com/ubuntu|http://jp.archive.ubuntu.com/ubuntu|g' "$src"
+          if [[ -f "$src" ]]; then
+            sudo sed -i "$mirror_sed" "$src"
           fi
         done
       fi

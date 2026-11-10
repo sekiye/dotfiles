@@ -29,9 +29,38 @@ fi
 eval "$("$BREW" shellenv bash)"
 BREWFILE='{{ .chezmoi.sourceDir }}/packages/Brewfile'
 
+# When Artifactory (ARTIFACTORY_URL) is reachable, pull bottles through its
+# ghcr.io proxy. It only serves bottles warmed by
+# scripts/warm-artifactory-brew.sh, so retry from ghcr.io when something is
+# missing. Homebrew sends the registry token to every GitHub Packages URL, so
+# pass it to this one command only, with no fallback to ghcr.io and no
+# auto-update. Set BREW_ARTIFACTORY=off to skip.
+use_artifactory() {
+  [[ "${BREW_ARTIFACTORY:-auto}" != "off" ]] || return 1
+  [[ -n "${ARTIFACTORY_URL:-}" && -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]] || return 1
+  # Accept "host", "https://host" or "https://host/artifactory".
+  artifactory_url="${ARTIFACTORY_URL%/}"
+  [[ "$artifactory_url" == *://* ]] || artifactory_url="https://$artifactory_url"
+  [[ "$artifactory_url" == */artifactory ]] || artifactory_url="$artifactory_url/artifactory"
+  curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null
+}
+
 echo "==> Ensuring Homebrew packages"
 if ! brew bundle check --file="$BREWFILE" >/dev/null 2>&1; then
-  brew bundle install --file="$BREWFILE"
+  if use_artifactory; then
+    echo "==> Using Artifactory for Homebrew bottles"
+    registry_auth="$(printf '%s:%s' "$ARTIFACTORY_USER" "$ARTIFACTORY_TOKEN" | base64 | tr -d '\n')"
+    if ! HOMEBREW_ARTIFACT_DOMAIN="$artifactory_url/api/docker/docker-ghcr-remote" \
+      HOMEBREW_ARTIFACT_DOMAIN_NO_FALLBACK=1 \
+      HOMEBREW_DOCKER_REGISTRY_BASIC_AUTH_TOKEN="$registry_auth" \
+      HOMEBREW_NO_AUTO_UPDATE=1 \
+      brew bundle install --file="$BREWFILE"; then
+      echo "==> Some bottles are not cached in Artifactory; retrying from ghcr.io" >&2
+      brew bundle install --file="$BREWFILE"
+    fi
+  else
+    brew bundle install --file="$BREWFILE"
+  fi
 fi
 
 # Intentionally no `brew bundle cleanup`: Homebrew can contain unrelated tools.

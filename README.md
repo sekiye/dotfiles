@@ -36,13 +36,58 @@ Linuxでは必要なbase packagesと `en_US.UTF-8` localeもbootstrapが準備�
 Dev Container向けのownership修復は `~/.config` / `~/.local` など管理対象だけに限定し、
 `$HOME` 全体には再帰的 `chown` を行いません。
 
-base packagesが不足していてaptを実行する場合だけ、amd64では apt の取得先を
-`jp.archive.ubuntu.com` に切り替えます（`--no-install-recommends` でインストール）。
+### Artifactory（任意）
+
+環境変数 `ARTIFACTORY_URL`（例: `artifactory.example.com`）/ `ARTIFACTORY_USER` /
+`ARTIFACTORY_TOKEN`（Identity Token）があり、Artifactoryに接続できる場合だけ、
+apt と Homebrew の取得先を Artifactory の remote repository に切り替えます。
+どれかが無い、または接続できない場合は使いません。
+
+Dev Containerでは、ホスト側で設定した値を `devcontainer.json` から渡します
+（トークンをファイルに書かないこと）:
+
+```jsonc
+"remoteEnv": {
+  "ARTIFACTORY_URL": "${localEnv:ARTIFACTORY_URL}",
+  "ARTIFACTORY_USER": "${localEnv:ARTIFACTORY_USER}",
+  "ARTIFACTORY_TOKEN": "${localEnv:ARTIFACTORY_TOKEN}"
+}
+```
+
+#### apt
+
+base packagesが不足していてaptを実行する場合だけ、apt の取得先を切り替えます
+（`--no-install-recommends` でインストール）。
+
+- Artifactoryを使える場合: `debian-remote` / `debian-ubuntu-ports-remote`。
+  認証情報は `/etc/apt/auth.conf.d/artifactory.conf`（root所有・権限600）に
+  書き込まれます。既存の `/etc/apt/auth.conf{,.d/*}` に認証情報があれば
+  `ARTIFACTORY_USER` / `ARTIFACTORY_TOKEN` は不要です。
+- それ以外: amd64 では `jp.archive.ubuntu.com`。
+
+Artifactoryに切り替えたコンテナは、その後のaptもArtifactoryへの接続が必要です。
 
 ```bash
-APT_JP_MIRROR=0 ./bootstrap.sh   # ミラーを切り替えない
-APT_FORCE_IPV4=1 ./bootstrap.sh  # IPv6経路が不安定な場合にaptをIPv4に固定
+APT_MIRROR=artifactory ./bootstrap.sh  # auto(default) / artifactory / jp / off
+APT_FORCE_IPV4=1 ./bootstrap.sh        # IPv6経路が不安定な場合にaptをIPv4に固定
 ```
+
+#### Homebrew bottles
+
+`brew bundle install` は ghcr.io proxy（`docker-ghcr-remote`）から
+bottleを取得します（Linux / macOS 共通、`BREW_ARTIFACTORY=off` で無効化）。
+
+Artifactoryは「プラットフォーム別manifestを一度取得したbottle」しか返さないため、
+使うbottleを事前にキャッシュへ載せておきます。新しいバージョンが出たら再実行します。
+
+```bash
+scripts/warm-artifactory-brew.sh          # Brewfile + 依存（Linux/macOS）
+scripts/warm-artifactory-brew.sh tree jq  # 個別に指定
+```
+
+キャッシュに無いbottleがあると、Artifactory無しで ghcr.io から再実行します。
+Homebrewは認証ヘッダーを全GitHub Packages URLに付けるため、トークンは
+`brew bundle install` にだけ渡し、ghcr.io へのフォールバックと自動updateは無効にしています。
 
 ### macOS
 

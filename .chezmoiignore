@@ -3,3 +3,4 @@ bootstrap.sh
 install.sh
 .gitignore
 packages/
+scripts/
