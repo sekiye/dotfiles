@@ -105,16 +105,27 @@ case "$OS" in
         artifactory_host="${artifactory_host%%/*}"
       fi
       if [[ "$apt_mirror" == "auto" ]]; then
-        if [[ -n "$artifactory_url" && -r /etc/ssl/certs/ca-certificates.crt ]] \
-          && command -v curl >/dev/null 2>&1 \
-          && curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null \
-          && { [[ -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]] \
-            || sudo grep -qsF "$artifactory_host" /etc/apt/auth.conf /etc/apt/auth.conf.d/*; }; then
+        skip_reason=""
+        if [[ -z "$artifactory_url" ]]; then
+          skip_reason="ARTIFACTORY_URL is not set"
+        elif [[ ! -r /etc/ssl/certs/ca-certificates.crt ]] || ! command -v curl >/dev/null 2>&1; then
+          skip_reason="curl or ca-certificates is not installed"
+        elif ! curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null; then
+          skip_reason="$artifactory_url is not reachable"
+        elif ! [[ -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]] \
+          && ! sudo grep -qsF "$artifactory_host" /etc/apt/auth.conf /etc/apt/auth.conf.d/*; then
+          skip_reason="no credentials (ARTIFACTORY_USER / ARTIFACTORY_TOKEN or git credential)"
+        fi
+
+        if [[ -z "$skip_reason" ]]; then
           apt_mirror=artifactory
-        elif [[ "$(dpkg --print-architecture)" == "amd64" ]]; then
-          apt_mirror=jp
         else
-          apt_mirror=off
+          log "Artifactory skipped for apt: $skip_reason"
+          if [[ "$(dpkg --print-architecture)" == "amd64" ]]; then
+            apt_mirror=jp
+          else
+            apt_mirror=off
+          fi
         fi
       fi
 

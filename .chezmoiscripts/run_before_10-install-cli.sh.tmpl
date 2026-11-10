@@ -37,12 +37,18 @@ BREWFILE='{{ .chezmoi.sourceDir }}/packages/Brewfile'
 # auto-update. Set BREW_ARTIFACTORY=off to skip.
 use_artifactory() {
   [[ "${BREW_ARTIFACTORY:-auto}" != "off" ]] || return 1
-  [[ -n "${ARTIFACTORY_URL:-}" && -n "${ARTIFACTORY_USER:-}" && -n "${ARTIFACTORY_TOKEN:-}" ]] || return 1
+  if [[ -z "${ARTIFACTORY_URL:-}" || -z "${ARTIFACTORY_USER:-}" || -z "${ARTIFACTORY_TOKEN:-}" ]]; then
+    echo "==> Artifactory skipped for Homebrew: ARTIFACTORY_URL / ARTIFACTORY_USER / ARTIFACTORY_TOKEN not set"
+    return 1
+  fi
   # Accept "host", "https://host" or "https://host/artifactory".
   artifactory_url="${ARTIFACTORY_URL%/}"
   [[ "$artifactory_url" == *://* ]] || artifactory_url="https://$artifactory_url"
   [[ "$artifactory_url" == */artifactory ]] || artifactory_url="$artifactory_url/artifactory"
-  curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null
+  if ! curl -fsS -o /dev/null --max-time 3 "$artifactory_url/api/system/ping" 2>/dev/null; then
+    echo "==> Artifactory skipped for Homebrew: $artifactory_url is not reachable"
+    return 1
+  fi
 }
 
 echo "==> Ensuring Homebrew packages"

@@ -48,10 +48,14 @@ apt と Homebrew の取得先を Artifactory の remote repository に切り替�
 - `ARTIFACTORY_URL`: `git config artifactory.url`
 - `ARTIFACTORY_USER` / `ARTIFACTORY_TOKEN`: git credential helper（`https://<host>`）
 
-VS Code の Dev Containers はホストの `~/.gitconfig` をコンテナにコピーし、
-git credential をホストへ転送するので、`devcontainer.json` を変更せずに使えます。
-ここでのホストは Dev Containers が動くマシンです（Remote-SSH 経由ならリモート側）。
-ホストで一度だけ設定します:
+VS Code の Dev Containers は git credential をホストへ転送するので、認証情報は
+`devcontainer.json` を変更せずに使えます。ここでのホストは Dev Containers が動く
+マシンです（Remote-SSH 経由ならリモート側）。ただし `~/.gitconfig` は `user.*`
+しかコピーされないため、Dev Container では `ARTIFACTORY_URL` を
+[personal-bootstrap](https://github.com/sekiye/devcontainer-features) Feature の
+`artifactoryUrl` オプション（VS Code のユーザー設定）で渡します。
+
+ホストで一度だけ設定します（`artifactory.url` はホスト上での実行用）:
 
 ```bash
 host=artifactory.example.com
