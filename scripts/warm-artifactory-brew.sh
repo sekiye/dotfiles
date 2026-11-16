@@ -6,8 +6,9 @@
 # manifest and requests the blob directly. Pulling every platform manifest of
 # each bottle once makes the blobs available to all Artifactory users.
 #
-# Targets the formulae in packages/Brewfile plus their Linux (x86_64/arm64)
-# and host dependencies, or the formulae given as arguments. Re-run after
+# Targets the formulae in packages/Brewfile plus the Linux (x86_64/arm64) and
+# host dependencies of its formulae and casks, or the formulae given as
+# arguments. Re-run after
 # `brew update` brings new versions or bottle rebuilds.
 #
 # Usage: scripts/warm-artifactory-brew.sh [formula ...]
@@ -42,21 +43,36 @@ af_curl() {
     "$@"
 }
 
+roots=()
+casks=()
 if (($#)); then
   roots=("$@")
 else
-  roots=()
   while IFS= read -r f; do roots+=("$f"); done \
     < <(sed -nE 's/^brew "([^"]+)".*/\1/p' "$BREWFILE")
+  # Casks are downloaded from their own URLs, but their formula dependencies
+  # (e.g. python for azure-cli) are bottles.
+  while IFS= read -r f; do casks+=("$f"); done \
+    < <(sed -nE 's/^cask "([^"]+)".*/\1/p' "$BREWFILE")
 fi
+
+# Dependencies on the host and on Linux (x86_64 / arm64).
+deps() {
+  brew deps --union "$@" 2>/dev/null
+  brew deps --union --os=linux --arch=intel "$@" 2>/dev/null
+  brew deps --union --os=linux --arch=arm "$@" 2>/dev/null
+}
 
 formulae=()
 while IFS= read -r f; do formulae+=("$f"); done < <(
   {
-    printf '%s\n' "${roots[@]}"
-    brew deps --union "${roots[@]}" 2>/dev/null
-    brew deps --union --os=linux --arch=intel "${roots[@]}" 2>/dev/null
-    brew deps --union --os=linux --arch=arm "${roots[@]}" 2>/dev/null
+    if ((${#roots[@]})); then
+      printf '%s\n' "${roots[@]}"
+      deps "${roots[@]}"
+    fi
+    if ((${#casks[@]})); then
+      deps --cask "${casks[@]}"
+    fi
   } | sort -u
 )
 
