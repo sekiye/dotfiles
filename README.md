@@ -11,6 +11,7 @@ Ubuntu / Dev Container / macOS で共通利用する個人 dotfiles。
 - wfxr/forgit
 - zoxide
 - fd / ripgrep / bat / eza / jq
+- tmux
 - Azure CLI（Homebrew cask。macOS / Linux 共通）
 - chezmoi
 
